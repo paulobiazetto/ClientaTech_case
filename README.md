@@ -37,7 +37,7 @@ O projeto foi reorganizado para melhor modularidade:
 Antes de rodar, gere o banco de dados de teste:
 
 ```bash
-python database/setup_database_v2.py
+python database/setup_database.py
 ```
 
 ### 3. Rodando com Docker (Recomendado)
@@ -50,7 +50,7 @@ A aplicação foi dockerizada para facilitar a execução da interface web.
 docker-compose up --build
 ```
 
-2.  Acesse a aplicação no navegador em: `http://localhost:8501`
+2.  Acesse a aplicação no navegador em: `http://localhost:8502`
 
 > **Nota:** O Docker está configurado para se conectar ao Ollama rodando na sua máquina local ("host"). Certifique-se de que o Ollama está rodando (`ollama serve`).
 
