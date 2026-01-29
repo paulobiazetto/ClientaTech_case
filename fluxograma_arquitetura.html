@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluxograma - Agente ClientaTech</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .mermaid {
+            margin: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Agente ClientaTech - Fluxograma da Arquitetura</h1>
+    <p>Este diagrama é renderizado automaticamente via Mermaid.js</p>
+    <hr>
+
+    <div class="mermaid">
+        graph TD
+        %% Nós
+        User(("👤 Usuário"))
+        subgraph CoreAgent["Núcleo do Agente (Orquestrador)"]
+        Input["Consulta do Usuário"]
+        Router{"🧠 Roteador de Intenção<br />(Classificador)"}
+        Cache[("⚡ Cache Semântico")]
+        end
+
+        subgraph Model1["Modelo 1: qwen2.5-coder:14b<br />(Especialista em Lógica e Código)"]
+        GenProfile["Especialista SQL: Perfil"]
+        GenHistory["Especialista SQL: Histórico"]
+        GenRisk["Especialista SQL: Risco"]
+        GenAbsence["Especialista SQL: Ausência"]
+        GenGeneral["Especialista SQL: Geral"]
+        end
+
+        subgraph ExecutionLayer["Camada de Execução"]
+        Executor["⚙️ Executor SQLite"]
+        DB[("🗄️ Banco de Dados")]
+        end
+
+        subgraph Model2["Modelo 2: llama3-finetuned<br />(Persona Analista)"]
+        Analyst["🗣️ Gerador de Resposta<br />(Tom de Analista de Dados)"]
+        end
+
+        %% Fluxo
+        User --> Input
+        Input --> Cache
+        Cache -- Hit (Encontrado) --> Executor
+        Cache -- Miss (Não Encontrado) --> Router
+
+        %% Roteamento
+        Router -- PERFIL --> GenProfile
+        Router -- HISTÓRICO --> GenHistory
+        Router -- RISCO --> GenRisk
+        Router -- AUSÊNCIA --> GenAbsence
+        Router -- GERAL --> GenGeneral
+        Router -- SAUDAÇÃO --> Greeting["Saudação Simples"]
+
+        %% Geração
+        GenProfile --> SQL["SQL Gerado"]
+        GenHistory --> SQL
+        GenRisk --> SQL
+        GenAbsence --> SQL
+        GenGeneral --> SQL
+
+        %% Execução
+        SQL --> Executor
+        Executor <--> DB
+            Executor --> Results["📊 Resultados Estruturados"]
+
+            %% Análise
+            Results --> Analyst
+            IntentContext["Contexto da Intenção"] -.-> Analyst
+            Greeting --> Output["Resposta Final"]
+            Analyst --> Output
+
+            Output --> User
+
+            %% Estilos
+            classDef model1 fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+            classDef model2 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px;
+            classDef db fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+
+            class Router,GenProfile,GenHistory,GenRisk,GenAbsence,GenGeneral model1;
+            class Analyst model2;
+            class Cache,DB,Executor db;
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+</body>
+
+</html>
