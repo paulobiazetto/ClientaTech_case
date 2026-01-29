@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  clientatech-agent:
+    build: .
+    container_name: clientatech-agent
+    ports:
+      - "8502:8502"
+    environment:
+      # Connect to Ollama running on the host machine
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    volumes:
+      # Mount data and logs to persist data outside container
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # Mount code for dev (optional, remove for prod)
+      - ./src:/app/src
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
