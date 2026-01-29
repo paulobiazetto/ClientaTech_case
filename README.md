@@ -6,7 +6,7 @@ O **ClientaTech AI Agent** é um assistente inteligente baseado em SQL e LLMs lo
 
 ## 📂 Estrutura do Projeto
 
-Abrir **'fluxograma_arquitetura.html'** para mais informações.
+Abrir **`fluxograma_arquitetura.html`** para mais informações.
 
 O projeto foi reorganizado para melhor modularidade:
 
