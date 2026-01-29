@@ -1,6 +1,6 @@
 # 🤖 ClientaTech AI Agent
 
-O **ClientaTech AI Agent** é um assistente inteligente baseado em SQL e LLMs locais (via Ollama), projetado para analisar dados de clientes, contratos e interações. Ele utiliza uma arquitetura de roteamento semântico para classificar a intenção do usuário (Perfil, Risco, Histórico, etc.) e gerar consultas SQL precisas apenas quando necessário.
+O **ClientaTech AI Agent** é um assistente inteligente baseado em SQL e LLMs locais (via Ollama), projetado para analisar dados de clientes, contratos e interações. Ele utiliza uma arquitetura de roteamento semântico para classificar a intenção do usuário (Perfil, Histórico, Risco, Ausência, Geral e Saudação) e gerar consultas SQL precisas apenas quando necessário.
 
 ---
 
@@ -12,7 +12,7 @@ O projeto foi reorganizado para melhor modularidade:
     *   `agent.py`: O "cérebro" do agente. Contém a lógica de conexão com LLM, Roteador Semântico e geradores SQL.
     *   `app_ui.py`: Interface Web interativa construída com **Streamlit**.
 *   **`database/`**: Scripts de configuração e arquivos do banco de dados principal.
-    *   `clientatech.db` / `clientatech_v2.db`: Banco de dados SQLite simulando o CRM.
+    *   `clientatech.db`: Banco de dados SQLite simulando o CRM.
     *   `setup_database.py`: Script para recriar o banco de dados com dados fictícios.
 *   **`data/`**: Arquivos de dados auxiliares e cache.
     *   `cache.db`: Cache semântico para evitar chamadas repetitivas ao LLM/Banco.
@@ -37,7 +37,7 @@ O projeto foi reorganizado para melhor modularidade:
 Antes de rodar, gere o banco de dados de teste:
 
 ```bash
-python database/setup_database_v2.py
+python database/setup_database.py
 ```
 
 ### 3. Rodando com Docker (Recomendado)
@@ -50,7 +50,7 @@ A aplicação foi dockerizada para facilitar a execução da interface web.
 docker-compose up --build
 ```
 
-2.  Acesse a aplicação no navegador em: `http://localhost:8501`
+2.  Acesse a aplicação no navegador em: `http://localhost:8502`
 
 > **Nota:** O Docker está configurado para se conectar ao Ollama rodando na sua máquina local ("host"). Certifique-se de que o Ollama está rodando (`ollama serve`).
 
@@ -76,7 +76,7 @@ docker-compose up --build
 ## 🧠 Arquitetura
 
 1.  **Input do Usuário**: A pergunta entra no sistema.
-2.  **Roteador Semântico (`classify_intent`)**: O LLM classifica a intenção (PROFILE, RISK, HISTORY, etc.).
+2.  **Roteador Semântico (`classify_intent`)**: O LLM classifica a intenção (PROFILE, HISTORY, RISK, ABSENCE, GENERAL, GREETING).
 3.  **Geração de SQL**: Um prompt especializado na intenção gera o SQL correto.
 4.  **Execução Segura**: O SQL é executado no `clientatech.db`.
 5.  **Analista Persona**: O LLM recebe os dados brutos e gera uma resposta em linguagem natural, formatada especificamente para a intenção (ex: Ficha cadastral com emojis, Alerta de Risco, etc.).
