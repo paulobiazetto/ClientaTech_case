@@ -99,19 +99,22 @@ def call_llm(model, messages, options=None, component="unknown"):
 # --- INFRASTRUCTURE (DB & CACHE) ---
 
 def get_db_connection():
-	"""Connects to the main business database."""
+	"""Conecta ao banco de dados de negócio (SQLite)."""
 	conn = sqlite3.connect(DB_PATH)
 	conn.row_factory = sqlite3.Row
 	return conn
 
 def get_cache_connection():
-	"""Connects to the dedicated Cache DB."""
+	"""Conecta ao banco separado de Cache."""
 	conn = sqlite3.connect(CACHE_DB_PATH)
 	conn.row_factory = sqlite3.Row
 	return conn
 
 def get_schema():
-	"""Retrieves the business database schema for context."""
+	"""
+	Recupera o schema do banco de dados dinamicamente. 
+	Isso é injetado no prompt para que a LLM saiba quais tabelas e colunas existem.
+	"""
 	schema = ""
 	conn = get_db_connection()
 	cursor = conn.cursor()
@@ -126,7 +129,7 @@ def get_schema():
 	return schema
 
 def init_cache():
-	"""Initializes the cache table in the dedicated DB."""
+	"""Cria a tabela de cache se não existir."""
 	conn = get_cache_connection()
 	conn.execute('''
 		CREATE TABLE IF NOT EXISTS llm_cache (
@@ -140,7 +143,7 @@ def init_cache():
 	conn.close()
 
 def get_cache(user_query):
-	"""Checks for existing SQL in cache."""
+	"""Verifica se a query já existe no cache."""
 	query_hash = hashlib.md5(user_query.lower().strip().encode()).hexdigest()
 	conn = get_cache_connection()
 	row = conn.execute("SELECT sql_generated, intent FROM llm_cache WHERE query_hash = ?", (query_hash,)).fetchone()
@@ -148,7 +151,7 @@ def get_cache(user_query):
 	return row if row else None
 
 def save_cache(user_query, sql, intent):
-	"""Saves valid SQL to cache."""
+	"""Salva um SQL válido no cache."""
 	# Don't cache errors
 	if "Error" in sql or "SELECT 'Error" in sql: 
 		return 
@@ -169,8 +172,8 @@ def save_cache(user_query, sql, intent):
 
 def classify_intent(user_query):
 	"""
-	Decides the intent of the user query.
-	Returns: 'PROFILE', 'HISTORY', 'RISK', 'ABSENCE', 'GENERAL', 'GREETING'
+	Decides the intent of the user query. Returns: 'PROFILE', 'HISTORY', 'RISK', 'ABSENCE', 'GENERAL', 'GREETING'
+	Saída esperada: Um JSON com a categoria e o raciocínio.
 	"""
 	system_prompt = """# ROLE
 	Classification Expert for ClientaTech.
@@ -210,20 +213,20 @@ def classify_intent(user_query):
 		# Try to parse JSON
 		try:
 			 # Handle markdown code blocks if model encapsulates JSON
-			 if "```json" in content:
-				 import re
-				 match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
-				 if match: content = match.group(1)
+			if "```json" in content:
+				import re
+				match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
+				if match: content = match.group(1)
 				 
-			 data = json.loads(content)
-			 intent = data.get("category", "GREETING").strip().upper()
-			 reasoning = data.get("reasoning", "No reasoning provided")
-			 print(f"🤔 Raciocínio (DEBUG): {reasoning}")
+			data = json.loads(content)
+			intent = data.get("category", "GREETING").strip().upper()
+			reasoning = data.get("reasoning", "No reasoning provided")
+			print(f"🤔 Raciocínio (DEBUG): {reasoning}")
 			 
 		except json.JSONDecodeError:
 			 # Fallback if model fails strictly JSON
-			 logger.log("intent_error", error="JSON Parse Error", content=content)
-			 intent = "GREETING" 
+			logger.log("intent_error", error="JSON Parse Error", content=content)
+			intent = "GREETING" 
 
 		# Validation/Fallback
 		valid_intents = ['PROFILE', 'HISTORY', 'RISK', 'ABSENCE', 'GENERAL', 'GREETING']
@@ -247,7 +250,13 @@ def classify_intent(user_query):
 		return "GREETING"
 
 def _call_llm_sql(messages, user_query):
-	"""Helper to append user query, call LLM, and clean code block output."""
+	"""
+	Helper genérico para os Geradores de SQL.
+	- Adiciona a query do usuário.
+	- Chama a LLM.
+	- Extrai e limpa o bloco de código SQL.
+	- Valida se o output parece SQL (começa com SELECT/WITH).
+	"""
 	messages.append({"role": "user", "content": user_query})
 	try:
 		response = call_llm(
@@ -266,7 +275,7 @@ def _call_llm_sql(messages, user_query):
 		# Fallback: check for generic code block
 		match = re.search(r"```\s*(.*?)\s*```", content, re.DOTALL)
 		if match:
-			 return match.group(1).strip()
+			return match.group(1).strip()
 			 
 		# Fallback: strict cleanup if no code block
 		cleaned = content.replace("```sql", "").replace("```", "").strip()
@@ -283,7 +292,9 @@ def _call_llm_sql(messages, user_query):
 # --- SQL GENERATORS ---
 
 def generate_profile_sql(user_query, schema):
-	"""Generates SQL specifically for Entity Profiles (360 view)."""
+	"""
+	Especialista em PERFIL (Visão 360). Foca em joins precisos para trazer dados cadastrais + contratuais + última interação.
+	"""
 	system_prompt = f"""# ROLE
 	Expert SQL Data Scientist (Profile Specialist).
 
@@ -317,7 +328,9 @@ def generate_profile_sql(user_query, schema):
 	return _call_llm_sql(messages, user_query)
 
 def generate_history_sql(user_query, schema):
-	"""Generates SQL specifically for Interaction Lists."""
+	"""
+	Especialista em HISTÓRICO. Foca em listar eventos ordenados cronologicamente.
+	"""
 	system_prompt = f"""# ROLE
 	Expert SQL Data Scientist (History Specialist).
 
@@ -348,6 +361,10 @@ def generate_history_sql(user_query, schema):
 	return _call_llm_sql(messages, user_query)
 
 def generate_risk_sql(user_query, schema):
+	"""
+	Especialista em RISCO.Gera queries analíticas. Não julga o risco no SQL, mas extrai as métricas (dias para expirar, dias de silêncio)
+	para que o Analista (na próxima etapa) faça o julgamento subjetivo.
+	"""
 	system_prompt = f"""# ROLE
 	Expert SQL Data Scientist (Risk Specialist).
 
@@ -378,7 +395,10 @@ def generate_risk_sql(user_query, schema):
 	return _call_llm_sql(messages, user_query)
 
 def generate_absence_sql(user_query, schema):
-	"""Generates SQL specifically for 'No Interaction' queries."""
+	"""
+	Especialista em AUSÊNCIA/SILÊNCIO.
+	Lida com "lógica negativa" (NOT IN), que é difícil para LLMs generalistas.
+	"""
 	system_prompt = f"""# ROLE
 	Expert SQL Data Scientist (Absence Specialist).
 
@@ -409,7 +429,10 @@ def generate_absence_sql(user_query, schema):
 	return _call_llm_sql(messages, user_query)
 
 def generate_general_sql(user_query, schema):
-	"""Fallback for specific/general queries."""
+	"""
+	Especialista Generalista (Fallback).
+	Lida com agregações (Soma, Contagem) e buscas simples.
+	"""
 	system_prompt = f"""# ROLE
 	Expert SQL Data Scientist.
 
@@ -439,16 +462,18 @@ def generate_general_sql(user_query, schema):
 	return _call_llm_sql(messages, user_query)
 
 def generate_sql_router(user_query, schema):
-	"""Routes the query to the correct generator (Cached)."""
+	"""
+	Função Orquestradora do Router de SQL. Conecta o Intent Classifier aos Geradores.
+	"""
 	
-	# 1. Check Cache
+	# Verifica Cache (Performance First)
 	cached = get_cache(user_query)
 	if cached:
 		print(f"⚡ Cache Hit! (Intent: {cached['intent']})")
 		logger.log("cache_hit", intent=cached['intent'], query=user_query)
 		return cached['sql_generated'], cached['intent']
 
-	# 2. Logic (Router + Generator)
+	# Logic (Roteamento + Generator)
 	intent = classify_intent(user_query)
 	print(f"🧠 Intenção Detectada: {intent}")
 	logger.log("intent_route", intent=intent, query=user_query)
@@ -468,7 +493,7 @@ def generate_sql_router(user_query, schema):
 		
 	logger.log("sql_generated", sql=sql, intent=intent)
 	
-	# 3. Save Cache (if valid)
+	# Save Cache (if valid!)
 	save_cache(user_query, sql, intent)
 	return sql, intent
 
@@ -476,7 +501,10 @@ def generate_sql_router(user_query, schema):
 # --- EXECUTION ---
 
 def execute_sql(sql_query):
-	"""Executes the generated SQL query safely with metrics."""
+	"""
+	Executa o SQL gerado no banco físico.
+	Usa fetchall para recuperar dados e converte para lista de dicionários (JSON-friendly).
+	"""
 	start_time = datetime.now()
 	try:
 		conn = get_db_connection()
@@ -526,9 +554,9 @@ def load_few_shot_examples(n=5):
 	return examples_text
 
 def generate_final_response(user_query, sql_query, sql_result, intent):
-	print(sql_result)
 	"""
-	Generates the final response using the Intent as a Style Guide.
+	O 'Analista' final. Pega os dados estruturados (SQL Result) e os transforma em uma resposta humana.
+	O Prompt muda dinamicamente baseado na INTENÇÃO (Style Guide).
 	"""
 	today = datetime.now().strftime('%Y-%m-%d')
 	# dynamic_examples = load_few_shot_examples(n=10) # Load diverse examples
@@ -582,6 +610,8 @@ def generate_final_response(user_query, sql_query, sql_result, intent):
 	3. TONE: Professional. Can use emojis to make the response more engaging.
 	4. LOOK for calculated columns in the SQL result (e.g. 'dias_para_expirar', 'dias_desde_ultima_interacao') to explain timestamps.
 	"""
+	# EXAMPLES:
+    # {dynamic_examples}
 	
 	user_content = f"""
 	User Query: {user_query}

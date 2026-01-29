@@ -468,7 +468,7 @@ You MUST use the following format exactly (emojis included):
 
 # 2. IF INTENT = 'AGGREGATED' (Direct Answer)
 - Provide the number/value directly.
-- Example: "O faturamento mensal total é de R$ 50.000,00." or "Temos 15 clientes ativos no segmento Varejo."
+- Example: "O faturamento mensal total é de R$ [Value]." or "Temos [Clients] clientes ativos no segmento Varejo."
 
 # 3. IF INTENT = 'TEMPORAL' (Lists & Deadlines)
 - Use bullet points.
